@@ -68,17 +68,24 @@ export function attachSockets(io, manager) {
       if (room.game) emitGameState(room); // reconexion a partida en curso
     });
 
-    socket.on('room:start', ({ code, timeMode } = {}, cb) => {
-      const { room, error } = manager.startGame(code, socket.data.playerId, timeMode);
+    socket.on('room:start', ({ code, timeMode, extraEnabled } = {}, cb) => {
+      const { room, error } = manager.startGame(
+        code,
+        socket.data.playerId,
+        timeMode,
+        extraEnabled,
+      );
       if (error) return cb?.({ ok: false, error });
       cb?.({ ok: true });
       emitLobby(room);
       emitGameState(room);
     });
 
-    socket.on('game:addtime', ({ code, minutes } = {}, cb) => {
-      const { room, error } = manager.addTime(code, socket.data.playerId, minutes || 15);
-      if (error) return cb?.({ ok: false, error });
+    // El cliente en turno avisa que su reloj llego a 0 (para el +5 automatico).
+    socket.on('game:timeout', ({ code } = {}, cb) => {
+      const room = manager.getRoom(code);
+      if (!room?.game) return cb?.({ ok: false, error: 'Partida no encontrada' });
+      manager.applyTimeout(room, socket.data.playerId);
       cb?.({ ok: true });
       emitGameState(room);
     });
@@ -95,6 +102,7 @@ export function attachSockets(io, manager) {
       if (!res.ok) return cb?.({ ok: false, error: res.error });
 
       if (room.game.status === 'finished') room.status = 'finished';
+      manager.syncClockToTurn(room);
       cb?.({ ok: true, scoring: res.scoring });
       emitLobby(room);
       emitGameState(room);
@@ -115,6 +123,7 @@ export function attachSockets(io, manager) {
       const res = passTurn(room.game, socket.data.playerId);
       if (!res.ok) return cb?.({ ok: false, error: res.error });
       if (room.game.status === 'finished') room.status = 'finished';
+      manager.syncClockToTurn(room);
       cb?.({ ok: true });
       emitLobby(room);
       emitGameState(room);
@@ -125,6 +134,7 @@ export function attachSockets(io, manager) {
       if (!room?.game) return cb?.({ ok: false, error: 'Partida no encontrada' });
       const res = swapTiles(room.game, socket.data.playerId, tileIds);
       if (!res.ok) return cb?.({ ok: false, error: res.error });
+      manager.syncClockToTurn(room);
       cb?.({ ok: true });
       emitLobby(room);
       emitGameState(room);

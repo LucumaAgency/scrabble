@@ -27,6 +27,7 @@ export default function App() {
   const [name, setName] = useState(getSavedName());
   const [code, setCode] = useState('');
   const [timeMode, setTimeMode] = useState('15'); // '3' | '15' | 'unlimited'
+  const [extraTime, setExtraTime] = useState(false); // +5 min al agotarse
 
   // Estado local de la jugada en curso
   const [selectedId, setSelectedId] = useState(null);
@@ -86,12 +87,11 @@ export default function App() {
   }
 
   async function startGame() {
-    const res = await emit('room:start', { code: lobby.code, timeMode });
-    if (!res.ok) flashError(res.error);
-  }
-
-  async function addTime() {
-    const res = await emit('game:addtime', { code: lobby.code });
+    const res = await emit('room:start', {
+      code: lobby.code,
+      timeMode,
+      extraEnabled: timeMode !== 'unlimited' && extraTime,
+    });
     if (!res.ok) flashError(res.error);
   }
 
@@ -207,6 +207,24 @@ export default function App() {
     };
   }, [provisional, myTurn, lobby?.code]);
 
+  // Reloj propio: si es mi reloj el que corre y llega a 0, aviso al servidor
+  // (que aplica el +5 automatico si el tiempo extra esta activo). El rival no
+  // necesita hacer esto: su reloj esta parado mientras no es su turno.
+  useEffect(() => {
+    const t = game?.timer;
+    if (!t || t.mode === 'unlimited' || t.running !== playerId) return;
+    const startedAt = Date.now();
+    const startRemaining = t.players?.[playerId] ?? 0;
+    if (startRemaining <= 0) return; // ya gestionado (0 = sin extra o ya aplicado)
+    const id = setInterval(() => {
+      if (startRemaining - (Date.now() - startedAt) <= 0) {
+        emit('game:timeout', { code: lobby.code });
+        clearInterval(id);
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [game?.timer, playerId, lobby?.code]);
+
   // ---- Render ----
   if (!lobby) {
     return (
@@ -270,6 +288,15 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <label className={`switch ${timeMode === 'unlimited' ? 'disabled' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={extraTime}
+                  disabled={timeMode === 'unlimited'}
+                  onChange={(e) => setExtraTime(e.target.checked)}
+                />
+                <span>Tiempo extra: +5 min al agotarse</span>
+              </label>
             </div>
           )}
           {isHost ? (
@@ -289,7 +316,6 @@ export default function App() {
 
   // status playing | finished
   const finished = game?.status === 'finished';
-  const isHostInGame = lobby?.hostId === playerId;
   const winner =
     finished && game
       ? [...game.players].sort((a, b) => b.score - a.score)[0]
@@ -306,14 +332,29 @@ export default function App() {
             bagCount={game.bagCount}
             status={game.status}
           />
-          {game.timer && (
-            <div className="timer-bar">
-              <Timer timer={game.timer} />
-              {!finished && isHostInGame && game.timer.mode !== 'unlimited' && (
-                <button className="btn small" onClick={addTime}>
-                  +15 min
-                </button>
-              )}
+          {game.timer && game.timer.mode !== 'unlimited' && (
+            <div className="clocks">
+              {game.players.map((p) => {
+                const nm =
+                  p.id === playerId
+                    ? 'Tú'
+                    : lobby.players.find((x) => x.id === p.id)?.name || 'Rival';
+                return (
+                  <div
+                    key={p.id}
+                    className={`clock-row ${game.timer.running === p.id ? 'active' : ''}`}
+                  >
+                    <span className="who">{nm}</span>
+                    <Timer timer={game.timer} playerId={p.id} />
+                  </div>
+                );
+              })}
+              {game.timer.extraEnabled && <span className="xtra muted">+5 min al agotarse</span>}
+            </div>
+          )}
+          {game.timer && game.timer.mode === 'unlimited' && (
+            <div className="clocks">
+              <span className="timer unlimited">⏱ Sin límite</span>
             </div>
           )}
           {finished && (

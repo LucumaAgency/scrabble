@@ -5,36 +5,38 @@ function fmt(ms) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-// Reloj total de la partida. El servidor manda `remainingMs` en cada game:state;
-// entre actualizaciones contamos localmente desde ese ancla (sin desfase de relojes).
-export default function Timer({ timer }) {
+// Reloj de UN jugador (tipo ajedrez). El servidor manda los ms restantes en
+// cada game:state; si es el reloj que corre, lo contamos localmente desde ese
+// ancla (sin desfase de relojes entre cliente y servidor).
+export default function Timer({ timer, playerId }) {
   const [, tick] = useState(0);
-  const anchor = useRef({ at: Date.now(), remaining: 0 });
+  const anchor = useRef({ at: Date.now(), remaining: 0, running: false });
 
-  // Resincroniza cada vez que llega un reloj nuevo del servidor.
-  useEffect(() => {
-    if (timer && timer.mode !== 'unlimited' && typeof timer.remainingMs === 'number') {
-      anchor.current = { at: Date.now(), remaining: timer.remainingMs };
-    }
-  }, [timer]);
-
-  // Refresca la cuenta una vez por segundo (solo si hay límite).
+  // Resincroniza al llegar un reloj nuevo del servidor.
   useEffect(() => {
     if (!timer || timer.mode === 'unlimited') return;
+    anchor.current = {
+      at: Date.now(),
+      remaining: timer.players?.[playerId] ?? 0,
+      running: timer.running === playerId,
+    };
+  }, [timer, playerId]);
+
+  // Refresca cada medio segundo solo si este reloj es el que corre.
+  useEffect(() => {
+    if (!timer || timer.mode === 'unlimited' || timer.running !== playerId) return;
     const id = setInterval(() => tick((n) => n + 1), 500);
     return () => clearInterval(id);
-  }, [timer]);
+  }, [timer, playerId]);
 
-  if (!timer || timer.mode === 'unlimited') {
-    return <div className="timer unlimited">⏱ Sin límite</div>;
-  }
+  if (!timer || timer.mode === 'unlimited') return null;
 
-  const remaining = anchor.current.remaining - (Date.now() - anchor.current.at);
-  const expired = remaining <= 0;
+  let rem = anchor.current.remaining;
+  if (anchor.current.running) rem -= Date.now() - anchor.current.at;
+  const expired = rem <= 0;
   return (
-    <div className={`timer ${expired ? 'expired' : remaining < 60000 ? 'low' : ''}`}>
-      ⏱ {fmt(remaining)}
-      {expired ? ' · ¡Tiempo agotado!' : ''}
-    </div>
+    <span className={`pclock ${anchor.current.running ? 'run' : ''} ${expired ? 'expired' : rem < 60000 ? 'low' : ''}`}>
+      ⏱ {fmt(rem)}
+    </span>
   );
 }

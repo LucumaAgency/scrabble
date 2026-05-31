@@ -6,11 +6,37 @@ const CODE_LEN = 4;
 
 // Minutos por cada modo de tiempo; 'unlimited' = sin limite.
 const TIME_MODES = { '3': 3, '15': 15 };
+const EXTRA_MS = 5 * 60000; // tiempo extra que se concede al agotarse el reloj
 
-function makeTimer(timeMode, nowMs) {
+// Crea el reloj por jugador (tipo ajedrez): cada jugador tiene su banco de
+// tiempo y solo corre el del jugador en turno. extraEnabled = conceder +5 min
+// automaticos cuando un jugador se queda sin tiempo.
+function makeTimer(timeMode, extraEnabled, game, nowMs) {
   const minutes = TIME_MODES[timeMode];
-  if (!minutes) return { mode: 'unlimited', endsAt: null };
-  return { mode: timeMode, endsAt: nowMs + minutes * 60000 };
+  if (!minutes) return { mode: 'unlimited' };
+  const players = {};
+  for (const p of game.players) players[p.id] = { remainingMs: minutes * 60000 };
+  return {
+    mode: timeMode,
+    extraEnabled: !!extraEnabled,
+    players,
+    running: game.players[game.turn].id, // de quien corre el reloj
+    since: nowMs, // desde cuando corre
+  };
+}
+
+// Descuenta al jugador en turno el tiempo transcurrido. Si se agota y el extra
+// esta activo, le suma +5 min; si no, se queda en 0 (solo aviso visual).
+function commitRunning(timer, nowMs) {
+  if (!timer || timer.mode === 'unlimited' || timer.running == null) return;
+  const p = timer.players[timer.running];
+  if (!p) return;
+  p.remainingMs -= nowMs - timer.since;
+  if (p.remainingMs <= 0) {
+    p.remainingMs = timer.extraEnabled ? p.remainingMs + EXTRA_MS : 0;
+    if (p.remainingMs < 0) p.remainingMs = 0;
+  }
+  timer.since = nowMs;
 }
 
 // Gestor de salas en memoria. Una partida = un objeto. Sin Redis, un solo proceso.
@@ -65,7 +91,7 @@ export function createRoomManager({
     return { room };
   }
 
-  function startGame(code, playerId, timeMode = 'unlimited') {
+  function startGame(code, playerId, timeMode = 'unlimited', extraEnabled = false) {
     const room = rooms.get(code);
     if (!room) return { error: 'Sala no encontrada' };
     if (room.hostId !== playerId) return { error: 'Solo el anfitrion puede empezar' };
@@ -73,30 +99,44 @@ export function createRoomManager({
     if (room.players.length < 2) return { error: 'Se necesitan 2 jugadores' };
 
     room.game = createGame({ playerIds: room.players.map((p) => p.id), dictionary, rng });
-    room.timer = makeTimer(timeMode, now());
+    room.timer = makeTimer(timeMode, extraEnabled, room.game, now());
     room.status = 'playing';
     return { room };
   }
 
-  // El anfitrion anade tiempo al reloj total (por defecto 15 min). Si ya se
-  // agoto, cuenta los nuevos minutos desde ahora.
-  function addTime(code, playerId, minutes = 15) {
-    const room = rooms.get(code);
-    if (!room) return { error: 'Sala no encontrada' };
-    if (room.hostId !== playerId) return { error: 'Solo el anfitrion puede anadir tiempo' };
-    if (!room.timer || room.timer.mode === 'unlimited') {
-      return { error: 'La partida es sin limite de tiempo' };
-    }
-    room.timer.endsAt = Math.max(room.timer.endsAt, now()) + minutes * 60000;
+  // Tras una jugada/pase/cambio: para el reloj del que jugaba y arranca el del
+  // siguiente (o lo detiene si la partida termino).
+  function syncClockToTurn(room) {
+    const t = room?.timer;
+    if (!t || t.mode === 'unlimited') return;
+    const n = now();
+    commitRunning(t, n);
+    t.running = room.game.status === 'playing' ? room.game.players[room.game.turn].id : null;
+    t.since = n;
+  }
+
+  // El cliente del jugador en turno avisa cuando su reloj llega a 0: aplicamos
+  // el descuento (y el +5 automatico si el extra esta activo).
+  function applyTimeout(room, playerId) {
+    const t = room?.timer;
+    if (!t || t.mode === 'unlimited' || t.running !== playerId) return { room };
+    commitRunning(t, now());
     return { room };
   }
 
-  // Foto del reloj para enviar al cliente: tiempo restante en ms (el cliente
-  // lo cuenta localmente entre actualizaciones, evitando desfase de relojes).
+  // Foto del reloj para el cliente: ms restantes por jugador (el del jugador en
+  // turno cuenta localmente entre actualizaciones, evitando desfase de relojes).
   function timerSnapshot(room) {
     const t = room?.timer;
-    if (!t || t.mode === 'unlimited' || t.endsAt == null) return { mode: 'unlimited' };
-    return { mode: t.mode, remainingMs: Math.max(0, t.endsAt - now()) };
+    if (!t || t.mode === 'unlimited') return { mode: 'unlimited' };
+    const n = now();
+    const players = {};
+    for (const [pid, p] of Object.entries(t.players)) {
+      let rem = p.remainingMs;
+      if (pid === t.running) rem -= n - t.since;
+      players[pid] = Math.max(0, rem);
+    }
+    return { mode: t.mode, extraEnabled: t.extraEnabled, running: t.running, players };
   }
 
   function setConnected(code, playerId, connected) {
@@ -114,7 +154,8 @@ export function createRoomManager({
     createRoom,
     joinRoom,
     startGame,
-    addTime,
+    syncClockToTurn,
+    applyTimeout,
     timerSnapshot,
     setConnected,
     getRoom,

@@ -137,16 +137,21 @@ body {
 .time-select { display: flex; flex-direction: column; gap: 6px; }
 .seg { display: flex; gap: 6px; }
 .seg .btn { flex: 1; }
+.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+.switch.disabled { opacity: 0.45; cursor: not-allowed; }
+.switch input { width: 16px; height: 16px; accent-color: var(--accent); }
 
-/* ---- Reloj (juego) ---- */
-.timer-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  background: var(--panel); border-radius: 10px; padding: 8px 12px;
-}
-.timer { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+/* ---- Relojes por jugador (juego) ---- */
+.clocks { background: var(--panel); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+.clock-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+.clock-row.active { background: #20303b; }
+.clock-row .who { color: var(--muted); font-size: 13px; }
+.pclock { font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.pclock.run { color: var(--text); }
+.pclock.run.low { color: #f1c977; }
+.pclock.run.expired { color: #f3b1a6; }
+.clocks .xtra { font-size: 11px; text-align: center; }
 .timer.unlimited { font-size: 15px; font-weight: 600; color: var(--muted); }
-.timer.low { color: #f1c977; }
-.timer.expired { color: #f3b1a6; }
 
 /* ---- Preview de puntos ---- */
 .preview {
