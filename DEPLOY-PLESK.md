@@ -25,7 +25,7 @@ Guía para desplegar el Scrabble multijugador en Plesk con Git + Node.js (Passen
 | Versión de Node | `21.7.3` (o `22`) | El CI usa Node 22; 21 funciona igual (ESM, sin `engines`). |
 | Package manager | `npm` | El repo usa npm workspaces. |
 | Modo de aplicación | `production` | |
-| **Archivo de inicio** | **`server/src/server.js`** | ⚠️ NO es `app.js`. Este es el punto clave. |
+| **Archivo de inicio** | **`app.cjs`** | ⚠️ NO es `app.js` ni `server/src/server.js`. Passenger carga el entry con `require()`, incompatible con ESM; `app.cjs` es un shim CommonJS que arranca el server ESM con `import()` dinámico. |
 | Raíz de la aplicación | `/scrabble.pruebalucuma.site` | Donde se clona el repo. |
 | Raíz del documento | `/scrabble.pruebalucuma.site` (raíz de la app) | NO usar `public/`: Express sirve el cliente y `/socket.io` por sí mismo; todo pasa por Node. |
 
@@ -42,7 +42,7 @@ NODE_ENV = production
 
 ## 3. Pasos de despliegue (en orden)
 
-1. Establecer **Archivo de inicio** → `server/src/server.js` y guardar.
+1. Establecer **Archivo de inicio** → `app.cjs` y guardar.
 2. Pulsar **NPM install** (instala dependencias de los workspaces server + client).
 3. Ejecutar el build del cliente: botón **Run script** → `build` (corre `npm run build`,
    genera `client/dist`).
