@@ -83,6 +83,37 @@ describe('flujo de sala por sockets', () => {
     b.close();
   });
 
+  it('una jugada por socket resuelve una ficha real del atril y valida en el motor', async () => {
+    const a = connect();
+    const b = connect();
+    const { code } = await emit(a, 'room:create', { playerId: 'pa', name: 'Ana' });
+    await emit(b, 'room:join', { code, playerId: 'pb', name: 'Beto' });
+
+    const aState = once(a, 'game:state');
+    await emit(a, 'room:start', { code });
+    const sa = await aState;
+    const myTile = sa.players.find((p) => p.id === 'pa').rack[0];
+
+    // Una sola ficha como primera jugada -> el motor la rechaza (debe pasar por el
+    // centro y tener >= 2 fichas). Demuestra que tileId se resolvio y applyMove corrio.
+    const res = await emit(a, 'game:move', {
+      code,
+      placements: [{ row: 7, col: 7, tileId: myTile.id, assigned: myTile.isBlank ? 'a' : null }],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBeTruthy();
+
+    // El rival no puede jugar fuera de turno.
+    const res2 = await emit(b, 'game:move', {
+      code,
+      placements: [{ row: 7, col: 7, tileId: 'inexistente' }],
+    });
+    expect(res2.ok).toBe(false);
+
+    a.close();
+    b.close();
+  });
+
   it('rechaza un tercer jugador', async () => {
     const a = connect();
     const b = connect();

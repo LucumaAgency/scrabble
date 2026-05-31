@@ -17,10 +17,16 @@ scrabble/
 │   │   ├── normalize.js    # Normalización (tildes fuera, Ñ dentro)
 │   │   └── game.js         # Máquina de estados de la partida
 │   └── test/               # Tests del motor (vitest)
-├── client/                 # Frontend React (pendiente)
-└── .github/workflows/      # CI
-
-* Socket.IO y salas: siguiente paso.
+│   ├── rooms.js            # Salas en memoria (código, máx 2 jugadores, reconexión)
+│   ├── socket.js           # Eventos Socket.IO (server-authoritative)
+│   └── server.js           # Express + Socket.IO + sirve el cliente
+├── client/                 # Frontend React (Vite)
+│   └── src/
+│       ├── App.jsx         # Home + lobby + juego + reconexión
+│       ├── socket.js       # Conexión + playerId en localStorage
+│       ├── premiums.js     # Layout de premios (para pintar el tablero)
+│       └── components/     # Board, Rack, Scoreboard, BlankPicker
+└── .github/workflows/      # CI (tests + build)
 ```
 
 ## Decisiones del MVP
@@ -36,9 +42,17 @@ scrabble/
 ## Desarrollo
 
 ```bash
-npm install        # instala dependencias del workspace
-npm test           # corre los tests del motor
+npm install            # instala dependencias de todo el workspace
+npm test               # tests del motor + integración de sockets
+npm run dev:server     # server en :3001 (con --watch)
+npm run dev:client     # cliente Vite en :5173 (en dev apunta a :3001)
+npm run build          # compila el cliente a client/dist
+npm start              # server en producción (sirve client/dist si existe)
 ```
+
+Para probar en local: `npm run dev:server` en una terminal, `npm run dev:client` en
+otra, y abre `http://localhost:5173` en dos navegadores (o una ventana de incógnito)
+para simular dos jugadores.
 
 ## Diccionario
 

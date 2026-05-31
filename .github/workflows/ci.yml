@@ -16,7 +16,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Tests del motor
+      - name: Tests (motor + sockets)
         run: npm test
-      # Cuando exista el cliente React, aqui se anade:
-      # - run: npm run build --workspace client
+      - name: Build del cliente
+        run: npm run build

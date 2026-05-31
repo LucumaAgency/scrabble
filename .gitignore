@@ -6,3 +6,6 @@ build/
 *.log
 .DS_Store
 coverage/
+
+# build del cliente (se genera en CI / Plesk)
+client/dist/
