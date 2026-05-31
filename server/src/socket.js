@@ -1,4 +1,4 @@
-import { applyMove, passTurn, swapTiles, publicState } from './engine/index.js';
+import { applyMove, passTurn, swapTiles, previewMove, publicState } from './engine/index.js';
 import { lobbyState } from './rooms.js';
 
 // Sala personal de Socket.IO para enviar a un jugador su estado privado (su atril).
@@ -86,6 +86,15 @@ export function attachSockets(io, manager) {
       cb?.({ ok: true, scoring: res.scoring });
       emitLobby(room);
       emitGameState(room);
+    });
+
+    // Preview de puntos de la jugada en curso (NO la aplica): solo estima.
+    socket.on('game:preview', ({ code, placements } = {}, cb) => {
+      const room = manager.getRoom(code);
+      if (!room?.game) return cb?.({ ok: false, error: 'Partida no encontrada' });
+      const resolved = resolvePlacements(room.game, socket.data.playerId, placements);
+      if (resolved.error) return cb?.({ ok: false, error: resolved.error });
+      cb?.(previewMove(room.game, socket.data.playerId, resolved.placements));
     });
 
     socket.on('game:pass', ({ code } = {}, cb) => {

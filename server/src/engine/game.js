@@ -143,6 +143,32 @@ function finishGame(game, emptyRackPlayerId) {
   game.history.push({ type: 'end' });
 }
 
+// Calcula el resultado de una jugada SIN aplicarla: puntos estimados y validez
+// de cada palabra formada. Sirve para el preview en vivo del cliente. No muta
+// el estado (validateMove trabaja sobre un tablero temporal).
+export function previewMove(game, playerId, placements) {
+  if (game.status !== 'playing') return { ok: false, error: 'La partida no esta activa' };
+  const player = game.players.find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: 'No estas en la partida' };
+
+  const rackIds = new Set(player.rack.map((t) => t.id));
+  for (const p of placements) {
+    if (!rackIds.has(p.tile.id)) return { ok: false, error: 'Esa ficha no esta en tu atril' };
+  }
+
+  const result = validateMove(game.board, placements, { isFirstMove: game.isFirstMove });
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  const scoring = scoreMove(result.words, placements);
+  const words = scoring.breakdown.map((b) => ({
+    word: b.word,
+    score: b.score,
+    valid: isValidWord(game.dictionary, b.word),
+  }));
+  const allValid = words.every((w) => w.valid);
+  return { ok: true, total: scoring.total, bingo: scoring.bingo, words, allValid };
+}
+
 // Estado serializable para enviar a un cliente concreto: oculta los atriles
 // de los demas jugadores (anti-trampa) y las fichas de la bolsa.
 export function publicState(game, forPlayerId) {

@@ -133,6 +133,21 @@ body {
 .rack-tile.swap.active { outline: 3px solid var(--accent-2); }
 .tile-pts { position: absolute; right: 3px; bottom: 1px; font-size: 9px; font-weight: 700; }
 
+/* ---- Preview de puntos ---- */
+.preview {
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: center;
+  padding: 8px 14px; border-radius: 10px; background: #20303b;
+  border: 1px solid #2f3c49; min-height: 40px; max-width: 600px;
+}
+.preview.ok { background: #163a34; border-color: #1d4d44; }
+.preview.warn { background: #4a3a1c; border-color: #6b561f; }
+.preview.bad { background: #20303b; }
+.preview .pts { font-weight: 800; font-size: 18px; color: #7fe0cf; }
+.preview.warn .pts { color: #f1c977; }
+.preview .words { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; color: var(--muted); }
+.preview .pw.invalid { color: #f3b1a6; font-weight: 700; }
+.preview .hint { color: var(--muted); font-size: 13px; }
+
 /* ---- Actions ---- */
 .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
 

@@ -32,6 +32,7 @@ export default function App() {
   const [pendingBlank, setPendingBlank] = useState(null); // {row,col,tile} esperando letra
   const [swapMode, setSwapMode] = useState(false);
   const [swapIds, setSwapIds] = useState([]);
+  const [preview, setPreview] = useState(null); // estimado de la jugada en curso
 
   const flashError = useCallback((msg) => {
     setError(msg);
@@ -175,6 +176,30 @@ export default function App() {
     setSwapIds([]);
   }
 
+  // Estimado de puntos en vivo: cada vez que cambian las fichas provisionales,
+  // pide al servidor el preview de la jugada (con un pequeno debounce).
+  useEffect(() => {
+    if (!myTurn || provisional.length === 0) {
+      setPreview(null);
+      return;
+    }
+    const placements = provisional.map((p) => ({
+      row: p.row,
+      col: p.col,
+      tileId: p.tileId,
+      assigned: p.assigned || null,
+    }));
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const res = await emit('game:preview', { code: lobby.code, placements });
+      if (!cancelled) setPreview(res);
+    }, 120);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [provisional, myTurn, lobby?.code]);
+
   // ---- Render ----
   if (!lobby) {
     return (
@@ -284,6 +309,30 @@ export default function App() {
             swapIds={swapIds}
             onTileClick={onTileClick}
           />
+          {!finished && myTurn && !swapMode && provisional.length > 0 && (
+            <div
+              className={`preview ${
+                preview?.ok ? (preview.allValid ? 'ok' : 'warn') : 'bad'
+              }`}
+            >
+              {preview?.ok ? (
+                <>
+                  <span className="pts">
+                    ≈ {preview.total} pts{preview.bingo ? ' · ¡BINGO! +50' : ''}
+                  </span>
+                  <span className="words">
+                    {preview.words.map((w, i) => (
+                      <span key={i} className={`pw ${w.valid ? '' : 'invalid'}`}>
+                        {w.word.toUpperCase()} ({w.score}){w.valid ? '' : ' ✗'}
+                      </span>
+                    ))}
+                  </span>
+                </>
+              ) : (
+                <span className="hint">{preview?.error || 'Calculando…'}</span>
+              )}
+            </div>
+          )}
           {!finished && (
             <div className="actions">
               {!swapMode ? (

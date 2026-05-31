@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { createGame, applyMove, passTurn, swapTiles, publicState } from '../src/engine/game.js';
+import {
+  createGame,
+  applyMove,
+  passTurn,
+  swapTiles,
+  previewMove,
+  publicState,
+} from '../src/engine/game.js';
 import { makeDictionary } from '../src/engine/dictionary.js';
 import { T, place, mulberry32 } from './helpers.js';
 
@@ -101,6 +108,53 @@ describe('flujo de partida', () => {
     // SOL con DW del centro = 6, + 11 de las fichas ajenas = 17
     expect(game.players[0].score).toBe(17);
     expect(game.players[1].score).toBe(-11);
+  });
+});
+
+describe('previewMove', () => {
+  it('estima los puntos y valida las palabras sin mutar el estado', () => {
+    const game = newGame();
+    const c = T('C', 3);
+    const a1 = T('A', 1);
+    const s = T('S', 1);
+    const a2 = T('A', 1);
+    game.players[0].rack = [c, a1, s, a2, T('O', 1), T('L', 1), T('E', 1)];
+
+    const placements = [place(c, 7, 7), place(a1, 7, 8), place(s, 7, 9), place(a2, 7, 10)];
+    const res = previewMove(game, 'p1', placements);
+
+    expect(res.ok).toBe(true);
+    expect(res.total).toBe(12); // CASA con DW del centro
+    expect(res.allValid).toBe(true);
+    expect(res.words.map((w) => w.word)).toContain('casa');
+    // No muta el estado.
+    expect(game.board[7][7]).toBe(null);
+    expect(game.players[0].score).toBe(0);
+    expect(game.turn).toBe(0);
+  });
+
+  it('marca una palabra fuera del diccionario como invalida (allValid false)', () => {
+    const game = newGame();
+    const b = T('B', 3);
+    const z = T('Z', 10);
+    const t = T('T', 1);
+    game.players[0].rack = [b, z, t, T('A', 1), T('A', 1), T('A', 1), T('A', 1)];
+    const res = previewMove(game, 'p1', [place(b, 7, 7), place(z, 7, 8), place(t, 7, 9)]);
+
+    expect(res.ok).toBe(true); // estructura valida
+    expect(res.allValid).toBe(false);
+    expect(res.words.find((w) => w.word === 'bzt').valid).toBe(false);
+  });
+
+  it('devuelve error estructural si la primera jugada no pasa por el centro', () => {
+    const game = newGame();
+    const c = T('C', 3);
+    const a = T('A', 1);
+    game.players[0].rack = [c, a, T('S', 1), T('A', 1), T('O', 1), T('L', 1), T('E', 1)];
+    const res = previewMove(game, 'p1', [place(c, 0, 0), place(a, 0, 1)]);
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/centro/i);
   });
 });
 
