@@ -1,0 +1,15 @@
+{
+  "name": "@scrabble/server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}
