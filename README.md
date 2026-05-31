@@ -56,9 +56,14 @@ para simular dos jugadores.
 
 ## Diccionario
 
-`server/src/engine/data/dictionary.sample.txt` es solo una muestra para los tests. En
-producción se reemplaza por una lista completa en español (p. ej. derivada de FISE),
-una palabra por línea. `loadDictionary(path)` la normaliza al cargar.
+- `dictionary.es.txt` — **635k palabras** en español (derivadas de listas abiertas tipo
+  RLA-ES, filtradas a 2–15 letras jugables). Es lo que usa el server por defecto. NO es
+  la lista oficial FISE de torneo, pero es ideal para juego casero.
+- `dictionary.sample.txt` — muestra pequeña que usan los tests (rápida y determinista).
+
+Prioridad de carga en el server: `DICCIONARIO_PATH` > `dictionary.es.txt` > muestra.
+
+Regenerar la lista completa: `npm run dict --workspace server` (descarga y filtra).
 
 ## Despliegue (Plesk) — pendiente de afinar
 

@@ -11,9 +11,11 @@ import { attachSockets } from './socket.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 
-// Diccionario: usa DICCIONARIO_PATH si esta definido, si no la muestra.
+// Diccionario: DICCIONARIO_PATH > lista completa es.txt > muestra.
+const fullDict = join(__dirname, 'engine/data/dictionary.es.txt');
 const dictPath =
-  process.env.DICCIONARIO_PATH || join(__dirname, 'engine/data/dictionary.sample.txt');
+  process.env.DICCIONARIO_PATH ||
+  (existsSync(fullDict) ? fullDict : join(__dirname, 'engine/data/dictionary.sample.txt'));
 const dictionary = loadDictionary(dictPath);
 console.log(`Diccionario cargado: ${dictionary.size} palabras (${dictPath})`);
 
