@@ -10,6 +10,11 @@
     "start": "node src/server.js"
   },
   "devDependencies": {
+    "socket.io-client": "^4.8.3",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3"
   }
 }
