@@ -5,7 +5,10 @@ const URL =
   import.meta.env.VITE_SERVER_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin);
 
-export const socket = io(URL, { transports: ['websocket'], autoConnect: true });
+// Transporte por defecto de Socket.IO: empieza en long-polling y sube a
+// WebSocket si el proxy lo permite. Asi el juego conecta aunque el WebSocket
+// no atraviese el proxy (nginx/Apache de Plesk), cayendo a polling.
+export const socket = io(URL, { autoConnect: true });
 
 // Emit con promesa, usando el ack del servidor.
 export function emit(event, payload) {
