@@ -29,10 +29,15 @@ export function attachSockets(io, manager) {
   }
 
   // Cada jugador recibe un estado PERSONALIZADO (solo ve su propio atril).
+  // Se adjunta el reloj (timer) calculado en el momento del envio.
   function emitGameState(room) {
     if (!room.game) return;
+    const timer = manager.timerSnapshot(room);
     for (const p of room.players) {
-      io.to(personalRoom(room.code, p.id)).emit('game:state', publicState(room.game, p.id));
+      io.to(personalRoom(room.code, p.id)).emit('game:state', {
+        ...publicState(room.game, p.id),
+        timer,
+      });
     }
   }
 
@@ -63,11 +68,18 @@ export function attachSockets(io, manager) {
       if (room.game) emitGameState(room); // reconexion a partida en curso
     });
 
-    socket.on('room:start', ({ code } = {}, cb) => {
-      const { room, error } = manager.startGame(code, socket.data.playerId);
+    socket.on('room:start', ({ code, timeMode } = {}, cb) => {
+      const { room, error } = manager.startGame(code, socket.data.playerId, timeMode);
       if (error) return cb?.({ ok: false, error });
       cb?.({ ok: true });
       emitLobby(room);
+      emitGameState(room);
+    });
+
+    socket.on('game:addtime', ({ code, minutes } = {}, cb) => {
+      const { room, error } = manager.addTime(code, socket.data.playerId, minutes || 15);
+      if (error) return cb?.({ ok: false, error });
+      cb?.({ ok: true });
       emitGameState(room);
     });
 

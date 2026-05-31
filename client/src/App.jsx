@@ -12,6 +12,7 @@ import Board from './components/Board.jsx';
 import Rack from './components/Rack.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
 import BlankPicker from './components/BlankPicker.jsx';
+import Timer from './components/Timer.jsx';
 
 const playerId = getPlayerId();
 
@@ -25,6 +26,7 @@ export default function App() {
   // Formulario de inicio
   const [name, setName] = useState(getSavedName());
   const [code, setCode] = useState('');
+  const [timeMode, setTimeMode] = useState('15'); // '3' | '15' | 'unlimited'
 
   // Estado local de la jugada en curso
   const [selectedId, setSelectedId] = useState(null);
@@ -84,7 +86,12 @@ export default function App() {
   }
 
   async function startGame() {
-    const res = await emit('room:start', { code: lobby.code });
+    const res = await emit('room:start', { code: lobby.code, timeMode });
+    if (!res.ok) flashError(res.error);
+  }
+
+  async function addTime() {
+    const res = await emit('game:addtime', { code: lobby.code });
     if (!res.ok) flashError(res.error);
   }
 
@@ -245,6 +252,26 @@ export default function App() {
               </li>
             ))}
           </ul>
+          {isHost && (
+            <div className="time-select">
+              <span className="muted">Tiempo de partida</span>
+              <div className="seg">
+                {[
+                  ['3', '3 min'],
+                  ['15', '15 min'],
+                  ['unlimited', 'Ilimitado'],
+                ].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`btn small ${timeMode === val ? 'primary' : ''}`}
+                    onClick={() => setTimeMode(val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {isHost ? (
             <button className="btn primary" onClick={startGame} disabled={lobby.players.length < 2}>
               {lobby.players.length < 2 ? 'Esperando rival…' : 'Empezar partida'}
@@ -262,6 +289,7 @@ export default function App() {
 
   // status playing | finished
   const finished = game?.status === 'finished';
+  const isHostInGame = lobby?.hostId === playerId;
   const winner =
     finished && game
       ? [...game.players].sort((a, b) => b.score - a.score)[0]
@@ -278,6 +306,16 @@ export default function App() {
             bagCount={game.bagCount}
             status={game.status}
           />
+          {game.timer && (
+            <div className="timer-bar">
+              <Timer timer={game.timer} />
+              {!finished && isHostInGame && game.timer.mode !== 'unlimited' && (
+                <button className="btn small" onClick={addTime}>
+                  +15 min
+                </button>
+              )}
+            </div>
+          )}
           {finished && (
             <div className="banner">
               Partida terminada. Ganó <strong>{winner?.name || winner?.id}</strong> con{' '}

@@ -133,6 +133,21 @@ body {
 .rack-tile.swap.active { outline: 3px solid var(--accent-2); }
 .tile-pts { position: absolute; right: 3px; bottom: 1px; font-size: 9px; font-weight: 700; }
 
+/* ---- Selector de tiempo (lobby) ---- */
+.time-select { display: flex; flex-direction: column; gap: 6px; }
+.seg { display: flex; gap: 6px; }
+.seg .btn { flex: 1; }
+
+/* ---- Reloj (juego) ---- */
+.timer-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--panel); border-radius: 10px; padding: 8px 12px;
+}
+.timer { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+.timer.unlimited { font-size: 15px; font-weight: 600; color: var(--muted); }
+.timer.low { color: #f1c977; }
+.timer.expired { color: #f3b1a6; }
+
 /* ---- Preview de puntos ---- */
 .preview {
   display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: center;

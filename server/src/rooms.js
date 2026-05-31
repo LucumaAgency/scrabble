@@ -4,8 +4,23 @@ import { createGame } from './engine/index.js';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 4;
 
+// Minutos por cada modo de tiempo; 'unlimited' = sin limite.
+const TIME_MODES = { '3': 3, '15': 15 };
+
+function makeTimer(timeMode, nowMs) {
+  const minutes = TIME_MODES[timeMode];
+  if (!minutes) return { mode: 'unlimited', endsAt: null };
+  return { mode: timeMode, endsAt: nowMs + minutes * 60000 };
+}
+
 // Gestor de salas en memoria. Una partida = un objeto. Sin Redis, un solo proceso.
-export function createRoomManager({ dictionary, rng = Math.random, maxPlayers = 2 } = {}) {
+// `now` es inyectable para tests deterministas del reloj.
+export function createRoomManager({
+  dictionary,
+  rng = Math.random,
+  maxPlayers = 2,
+  now = () => Date.now(),
+} = {}) {
   const rooms = new Map();
 
   function generateCode() {
@@ -50,7 +65,7 @@ export function createRoomManager({ dictionary, rng = Math.random, maxPlayers = 
     return { room };
   }
 
-  function startGame(code, playerId) {
+  function startGame(code, playerId, timeMode = 'unlimited') {
     const room = rooms.get(code);
     if (!room) return { error: 'Sala no encontrada' };
     if (room.hostId !== playerId) return { error: 'Solo el anfitrion puede empezar' };
@@ -58,8 +73,30 @@ export function createRoomManager({ dictionary, rng = Math.random, maxPlayers = 
     if (room.players.length < 2) return { error: 'Se necesitan 2 jugadores' };
 
     room.game = createGame({ playerIds: room.players.map((p) => p.id), dictionary, rng });
+    room.timer = makeTimer(timeMode, now());
     room.status = 'playing';
     return { room };
+  }
+
+  // El anfitrion anade tiempo al reloj total (por defecto 15 min). Si ya se
+  // agoto, cuenta los nuevos minutos desde ahora.
+  function addTime(code, playerId, minutes = 15) {
+    const room = rooms.get(code);
+    if (!room) return { error: 'Sala no encontrada' };
+    if (room.hostId !== playerId) return { error: 'Solo el anfitrion puede anadir tiempo' };
+    if (!room.timer || room.timer.mode === 'unlimited') {
+      return { error: 'La partida es sin limite de tiempo' };
+    }
+    room.timer.endsAt = Math.max(room.timer.endsAt, now()) + minutes * 60000;
+    return { room };
+  }
+
+  // Foto del reloj para enviar al cliente: tiempo restante en ms (el cliente
+  // lo cuenta localmente entre actualizaciones, evitando desfase de relojes).
+  function timerSnapshot(room) {
+    const t = room?.timer;
+    if (!t || t.mode === 'unlimited' || t.endsAt == null) return { mode: 'unlimited' };
+    return { mode: t.mode, remainingMs: Math.max(0, t.endsAt - now()) };
   }
 
   function setConnected(code, playerId, connected) {
@@ -77,6 +114,8 @@ export function createRoomManager({ dictionary, rng = Math.random, maxPlayers = 
     createRoom,
     joinRoom,
     startGame,
+    addTime,
+    timerSnapshot,
     setConnected,
     getRoom,
     deleteRoom,
