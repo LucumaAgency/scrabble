@@ -124,6 +124,18 @@ describe('reloj por jugador', () => {
     expect(m.timerSnapshot(room).players.p1).toBe(280000); // -20s + 300s
   });
 
+  it('el +5 extra se concede una sola vez por jugador', () => {
+    const clock = { t: 0 };
+    const { m, room } = setupAt(clock, '3', true);
+    clock.t = 200000; // primer agotamiento
+    m.applyTimeout(room, 'p1');
+    expect(m.timerSnapshot(room).players.p1).toBe(280000); // -20s + 300s
+
+    clock.t = 600000; // se agota otra vez (mas de los 280s extra)
+    m.applyTimeout(room, 'p1');
+    expect(m.timerSnapshot(room).players.p1).toBe(0); // ya no suma de nuevo
+  });
+
   it('al agotarse sin extra se queda en 0', () => {
     const clock = { t: 0 };
     const { m, room } = setupAt(clock, '3', false);

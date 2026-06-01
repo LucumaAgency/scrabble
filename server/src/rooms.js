@@ -17,7 +17,7 @@ function makeTimer(timeMode, extraEnabled, game, nowMs) {
   const minutes = TIME_MODES[timeMode];
   if (!minutes) return { mode: 'unlimited' };
   const players = {};
-  for (const p of game.players) players[p.id] = { remainingMs: minutes * 60000 };
+  for (const p of game.players) players[p.id] = { remainingMs: minutes * 60000, extraUsed: false };
   return {
     mode: timeMode,
     extraEnabled: !!extraEnabled,
@@ -35,7 +35,11 @@ function commitRunning(timer, nowMs) {
   if (!p) return;
   p.remainingMs -= nowMs - timer.since;
   if (p.remainingMs <= 0) {
-    p.remainingMs = timer.extraEnabled ? p.remainingMs + EXTRA_MS : 0;
+    // El +5 min extra se concede UNA sola vez por jugador.
+    if (timer.extraEnabled && !p.extraUsed) {
+      p.remainingMs += EXTRA_MS;
+      p.extraUsed = true;
+    }
     if (p.remainingMs < 0) p.remainingMs = 0;
   }
   timer.since = nowMs;
