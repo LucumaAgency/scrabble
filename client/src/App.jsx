@@ -40,8 +40,6 @@ export default function App() {
   const [preview, setPreview] = useState(null); // estimado de la jugada en curso
   const [muted, setMuted] = useState(() => localStorage.getItem('scrabble:muted') === '1');
   const [rackOrder, setRackOrder] = useState([]); // orden local de las fichas del atril
-  const [checkWord, setCheckWord] = useState(''); // probador de palabras
-  const [checkResult, setCheckResult] = useState(null); // { word, valid } | { error }
 
   // Refs para leer valores actuales dentro de listeners de socket (sin re-suscribir).
   const mutedRef = useRef(muted);
@@ -168,14 +166,6 @@ export default function App() {
     });
   }
 
-  async function doCheckWord(e) {
-    e?.preventDefault?.();
-    const w = checkWord.trim();
-    if (!w) return;
-    const res = await emit('dictionary:check', { word: w });
-    setCheckResult(res?.ok ? { word: res.word, valid: res.valid } : { error: res?.error });
-  }
-
   // ---- Acciones de juego ----
   const myTurn = game && game.turnPlayerId === playerId && game.status === 'playing';
   const me = game?.players.find((p) => p.id === playerId);
@@ -201,7 +191,9 @@ export default function App() {
   }
 
   function onCellClick(row, col) {
-    if (!myTurn || !selectedId) return;
+    // Se pueden colocar fichas aunque NO sea tu turno: sirve para simular una
+    // jugada y ver en el tablero si la palabra existe y cuántos puntos daría.
+    if (!selectedId || game?.status !== 'playing') return;
     const tile = rackTiles.find((t) => t.id === selectedId);
     if (!tile) return;
     if (tile.isBlank) {
@@ -273,7 +265,7 @@ export default function App() {
   // Estimado de puntos en vivo: cada vez que cambian las fichas provisionales,
   // pide al servidor el preview de la jugada (con un pequeno debounce).
   useEffect(() => {
-    if (!myTurn || provisional.length === 0) {
+    if (provisional.length === 0) {
       setPreview(null);
       return;
     }
@@ -292,7 +284,7 @@ export default function App() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [provisional, myTurn, lobby?.code]);
+  }, [provisional, lobby?.code]);
 
   // Reloj propio: si es mi reloj el que corre y llega a 0, aviso al servidor
   // (que aplica el +5 automatico si el tiempo extra esta activo). El rival no
@@ -468,34 +460,9 @@ export default function App() {
           {info && <div className="banner ok">{info}</div>}
           {!finished && (
             <div className="turn-hint">
-              {myTurn ? 'Es tu turno' : 'Turno del rival…'}
+              {myTurn ? 'Es tu turno' : 'Turno del rival… (puedes probar fichas en el tablero)'}
             </div>
           )}
-
-          <form className="word-check" onSubmit={doCheckWord}>
-            <span className="muted small">¿Existe la palabra? (puedes probar sin ser tu turno)</span>
-            <div className="wc-row">
-              <input
-                value={checkWord}
-                onChange={(e) => {
-                  setCheckWord(e.target.value);
-                  setCheckResult(null);
-                }}
-                placeholder="ej. carro"
-              />
-              <button className="btn small" type="submit" disabled={checkWord.trim().length < 2}>
-                Probar
-              </button>
-            </div>
-            {checkResult &&
-              (checkResult.error ? (
-                <span className="wc-result muted">{checkResult.error}</span>
-              ) : (
-                <span className={`wc-result ${checkResult.valid ? 'ok' : 'bad'}`}>
-                  {checkResult.word.toUpperCase()} — {checkResult.valid ? '✓ válida' : '✗ no existe'}
-                </span>
-              ))}
-          </form>
 
           <History history={game.history} nameOf={nameOf} />
         </div>
@@ -519,7 +486,7 @@ export default function App() {
             onTileClick={onTileClick}
             onReorder={reorderRack}
           />
-          {!finished && myTurn && !swapMode && provisional.length > 0 && (
+          {!finished && !swapMode && provisional.length > 0 && (
             <div
               className={`preview ${
                 preview?.ok ? (preview.allValid ? 'ok' : 'warn') : 'bad'
@@ -541,6 +508,7 @@ export default function App() {
               ) : (
                 <span className="hint">{preview?.error || 'Calculando…'}</span>
               )}
+              {!myTurn && <span className="hint sim">· simulación (no es tu turno)</span>}
             </div>
           )}
           {!finished && (
