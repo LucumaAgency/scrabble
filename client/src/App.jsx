@@ -14,6 +14,7 @@ import Rack from './components/Rack.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
 import BlankPicker from './components/BlankPicker.jsx';
 import Timer from './components/Timer.jsx';
+import History from './components/History.jsx';
 
 const playerId = getPlayerId();
 
@@ -38,6 +39,9 @@ export default function App() {
   const [swapIds, setSwapIds] = useState([]);
   const [preview, setPreview] = useState(null); // estimado de la jugada en curso
   const [muted, setMuted] = useState(() => localStorage.getItem('scrabble:muted') === '1');
+  const [rackOrder, setRackOrder] = useState([]); // orden local de las fichas del atril
+  const [checkWord, setCheckWord] = useState(''); // probador de palabras
+  const [checkResult, setCheckResult] = useState(null); // { word, valid } | { error }
 
   // Refs para leer valores actuales dentro de listeners de socket (sin re-suscribir).
   const mutedRef = useRef(muted);
@@ -144,6 +148,34 @@ export default function App() {
     setMuted((m) => !m);
   };
 
+  function shuffleRack() {
+    setRackOrder((prev) => {
+      const a = [...prev];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    });
+  }
+
+  function reorderRack(fromId, toId) {
+    setRackOrder((prev) => {
+      const a = prev.filter((id) => id !== fromId);
+      const idx = a.indexOf(toId);
+      a.splice(idx < 0 ? a.length : idx, 0, fromId);
+      return a;
+    });
+  }
+
+  async function doCheckWord(e) {
+    e?.preventDefault?.();
+    const w = checkWord.trim();
+    if (!w) return;
+    const res = await emit('dictionary:check', { word: w });
+    setCheckResult(res?.ok ? { word: res.word, valid: res.valid } : { error: res?.error });
+  }
+
   // ---- Acciones de juego ----
   const myTurn = game && game.turnPlayerId === playerId && game.status === 'playing';
   const me = game?.players.find((p) => p.id === playerId);
@@ -152,6 +184,13 @@ export default function App() {
   // Verde si la(s) palabra(s) existen, rojo si alguna no; null mientras se coloca.
   const provStatus =
     provisional.length === 0 || !preview?.ok ? null : preview.allValid ? 'valid' : 'invalid';
+
+  // Atril en el orden elegido por el jugador (las fichas no ordenadas van al final).
+  const rackById = new Map(rackTiles.map((t) => [t.id, t]));
+  const orderedRack = [
+    ...rackOrder.map((id) => rackById.get(id)).filter(Boolean),
+    ...rackTiles.filter((t) => !rackOrder.includes(t.id)),
+  ];
 
   function onTileClick(tile) {
     if (swapMode) {
@@ -273,6 +312,19 @@ export default function App() {
     return () => clearInterval(id);
   }, [game?.timer, playerId, lobby?.code]);
 
+  // Mantiene el orden local del atril al ritmo del servidor: conserva el orden
+  // elegido y agrega al final las fichas nuevas (repartidas tras jugar).
+  useEffect(() => {
+    const ids = (me?.rack || []).map((t) => t.id);
+    setRackOrder((prev) => {
+      const kept = prev.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !kept.includes(id));
+      const next = [...kept, ...added];
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev;
+      return next;
+    });
+  }, [me?.rack]);
+
   // ---- Render ----
   if (!lobby) {
     return (
@@ -364,6 +416,8 @@ export default function App() {
 
   // status playing | finished
   const finished = game?.status === 'finished';
+  const nameOf = (pid) =>
+    pid === playerId ? 'Tú' : lobby.players.find((x) => x.id === pid)?.name || 'Rival';
   const winner =
     finished && game
       ? [...game.players].sort((a, b) => b.score - a.score)[0]
@@ -417,6 +471,33 @@ export default function App() {
               {myTurn ? 'Es tu turno' : 'Turno del rival…'}
             </div>
           )}
+
+          <form className="word-check" onSubmit={doCheckWord}>
+            <span className="muted small">¿Existe la palabra? (puedes probar sin ser tu turno)</span>
+            <div className="wc-row">
+              <input
+                value={checkWord}
+                onChange={(e) => {
+                  setCheckWord(e.target.value);
+                  setCheckResult(null);
+                }}
+                placeholder="ej. carro"
+              />
+              <button className="btn small" type="submit" disabled={checkWord.trim().length < 2}>
+                Probar
+              </button>
+            </div>
+            {checkResult &&
+              (checkResult.error ? (
+                <span className="wc-result muted">{checkResult.error}</span>
+              ) : (
+                <span className={`wc-result ${checkResult.valid ? 'ok' : 'bad'}`}>
+                  {checkResult.word.toUpperCase()} — {checkResult.valid ? '✓ válida' : '✗ no existe'}
+                </span>
+              ))}
+          </form>
+
+          <History history={game.history} nameOf={nameOf} />
         </div>
 
         <div className="center">
@@ -431,11 +512,12 @@ export default function App() {
 
         <div className="bottom">
           <Rack
-            tiles={rackTiles}
+            tiles={orderedRack}
             selectedId={selectedId}
             swapMode={swapMode}
             swapIds={swapIds}
             onTileClick={onTileClick}
+            onReorder={reorderRack}
           />
           {!finished && myTurn && !swapMode && provisional.length > 0 && (
             <div
@@ -483,6 +565,14 @@ export default function App() {
                     disabled={!myTurn}
                   >
                     Cambiar
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={shuffleRack}
+                    disabled={orderedRack.length < 2}
+                    title="Barajar el atril"
+                  >
+                    Barajar
                   </button>
                 </>
               ) : (

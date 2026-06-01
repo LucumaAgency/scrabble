@@ -109,6 +109,14 @@ export function attachSockets(io, manager) {
       emitGameState(room);
     });
 
+    // Comprueba si una palabra existe en el diccionario. No depende del turno
+    // ni de una partida: cualquiera puede probar la viabilidad de una palabra.
+    socket.on('dictionary:check', ({ word } = {}, cb) => {
+      const w = (word || '').trim();
+      if (w.length < 2) return cb?.({ ok: false, error: 'Escribe al menos 2 letras' });
+      cb?.({ ok: true, word: w, valid: manager.isWord(w) });
+    });
+
     // Preview de puntos de la jugada en curso (NO la aplica): solo estima.
     socket.on('game:preview', ({ code, placements } = {}, cb) => {
       const room = manager.getRoom(code);

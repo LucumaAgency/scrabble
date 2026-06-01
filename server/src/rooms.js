@@ -1,4 +1,4 @@
-import { createGame } from './engine/index.js';
+import { createGame, isValidWord } from './engine/index.js';
 
 // Alfabeto para codigos de sala: sin I, O, 0, 1 para evitar confusiones al teclear.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -170,10 +170,14 @@ export function createRoomManager({
   const getRoom = (code) => rooms.get(code);
   const deleteRoom = (code) => rooms.delete(code);
 
+  // Consulta del diccionario (sirve para probar palabras sin importar el turno).
+  const isWord = (word) => isValidWord(dictionary, word);
+
   return {
     rooms,
     createRoom,
     joinRoom,
+    isWord,
     startGame,
     syncClockToTurn,
     applyTimeout,

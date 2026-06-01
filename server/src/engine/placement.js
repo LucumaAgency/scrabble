@@ -46,7 +46,9 @@ export function validateMove(board, placements, { isFirstMove }) {
   const words = [];
   const seen = new Set();
   const addWord = (w) => {
-    if (w.word.length < 2) return;
+    // Una palabra debe ocupar 2+ celdas. Ojo: se mide por celdas, NO por
+    // longitud del string, porque un digrafo (CH/LL/RR) es 1 ficha = 2 chars.
+    if (w.cells.length < 2) return;
     const key = w.cells.map((c) => `${c.row},${c.col}`).join('|');
     if (seen.has(key)) return;
     seen.add(key);

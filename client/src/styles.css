@@ -140,7 +140,30 @@ body {
 }
 .rack-tile.active { outline: 3px solid var(--accent); transform: translateY(-4px); }
 .rack-tile.swap.active { outline: 3px solid var(--accent-2); }
+.rack-tile[draggable='true'] { cursor: grab; }
+.rack-tile.dragging { opacity: 0.4; }
 .tile-pts { position: absolute; right: 3px; bottom: 1px; font-size: 9px; font-weight: 700; }
+
+/* ---- Probador de palabras ---- */
+.small { font-size: 12px; }
+.word-check { background: var(--panel); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.wc-row { display: flex; gap: 6px; }
+.wc-row input {
+  flex: 1; min-width: 0; padding: 8px; border-radius: 8px; border: 1px solid #3c4654;
+  background: #222a34; color: var(--text); font-size: 15px;
+}
+.wc-result { font-size: 13px; font-weight: 700; }
+.wc-result.ok { color: #7fe0cf; }
+.wc-result.bad { color: #f3b1a6; }
+
+/* ---- Historial ---- */
+.history { background: var(--panel); border-radius: 10px; padding: 10px 12px; }
+.history h4 { margin: 0 0 6px; font-size: 14px; }
+.history-list { margin: 0; padding-left: 18px; max-height: 220px; overflow-y: auto; font-size: 13px; }
+.history-list li { padding: 3px 0; border-bottom: 1px solid #333c49; }
+.history-list .who { font-weight: 700; }
+.history-list .words { color: var(--tile); }
+.history-list .pts { color: #7fe0cf; font-weight: 700; }
 
 /* ---- Selector de tiempo (lobby) ---- */
 .time-select { display: flex; flex-direction: column; gap: 6px; }

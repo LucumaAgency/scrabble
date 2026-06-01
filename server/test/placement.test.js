@@ -28,6 +28,21 @@ describe('primera jugada', () => {
     expect(res.words.map((w) => w.word)).toEqual(['casa']);
   });
 
+  it('una ficha de digrafo (RR) no genera la falsa palabra cruzada "RR"', () => {
+    const board = createBoard();
+    // CARRO = C A RR O; la ficha RR sola NO debe contar como palabra cruzada,
+    // aunque su string tenga 2 caracteres (se mide por celdas, no por longitud).
+    const placements = [
+      place(T('C', 3), 7, 7),
+      place(T('A', 1), 7, 8),
+      place(T('RR', 8), 7, 9),
+      place(T('O', 1), 7, 10),
+    ];
+    const res = validateMove(board, placements, { isFirstMove: true });
+    expect(res.ok).toBe(true);
+    expect(res.words.map((w) => w.word)).toEqual(['carro']);
+  });
+
   it('rechaza si no pasa por el centro', () => {
     const board = createBoard();
     const placements = [place(T('S', 1), 0, 0), place(T('O', 1), 0, 1), place(T('L', 1), 0, 2)];
