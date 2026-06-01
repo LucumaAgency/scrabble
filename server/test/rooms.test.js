@@ -129,3 +129,18 @@ describe('reloj por jugador', () => {
     expect(m.timerSnapshot(room).players.p1).toBe(0);
   });
 });
+
+describe('reconexion (carrera de sockets)', () => {
+  it('la desconexion de un socket viejo no marca offline tras reconectar', () => {
+    const m = mgr();
+    const { code } = m.createRoom('p1', 'Ana');
+    m.attachSocket(code, 'p1', 's1'); // socket original
+
+    m.attachSocket(code, 'p1', 's2'); // recarga la pagina: nuevo socket
+    m.detachSocket(code, 'p1', 's1'); // llega tarde la desconexion del viejo
+    expect(m.getRoom(code).players[0].connected).toBe(true);
+
+    m.detachSocket(code, 'p1', 's2'); // la del socket actual si cuenta
+    expect(m.getRoom(code).players[0].connected).toBe(false);
+  });
+});

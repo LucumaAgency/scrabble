@@ -46,6 +46,7 @@ export function attachSockets(io, manager) {
     socket.data.playerId = playerId;
     socket.join(code);
     socket.join(personalRoom(code, playerId));
+    manager.attachSocket(code, playerId, socket.id); // marca este socket como el activo
   }
 
   io.on('connection', (socket) => {
@@ -143,7 +144,8 @@ export function attachSockets(io, manager) {
     socket.on('disconnect', () => {
       const { code, playerId } = socket.data;
       if (!code || !playerId) return;
-      const room = manager.setConnected(code, playerId, false);
+      // Solo cuenta si es el socket actual (evita falsos offline al recargar).
+      const room = manager.detachSocket(code, playerId, socket.id);
       if (room) emitLobby(room);
     });
   });

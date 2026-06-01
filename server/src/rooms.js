@@ -146,6 +146,27 @@ export function createRoomManager({
     return room;
   }
 
+  // Registra el socket actual del jugador y lo marca conectado.
+  function attachSocket(code, playerId, socketId) {
+    const room = rooms.get(code);
+    const player = room?.players.find((p) => p.id === playerId);
+    if (player) {
+      player.connected = true;
+      player.socketId = socketId;
+    }
+    return room;
+  }
+
+  // Desconexion: solo cuenta si viene del socket ACTUAL del jugador. Asi, al
+  // recargar la pagina, la desconexion del socket viejo (que llega despues de
+  // que el nuevo ya reconecto) no marca al jugador como offline.
+  function detachSocket(code, playerId, socketId) {
+    const room = rooms.get(code);
+    const player = room?.players.find((p) => p.id === playerId);
+    if (player && player.socketId === socketId) player.connected = false;
+    return room;
+  }
+
   const getRoom = (code) => rooms.get(code);
   const deleteRoom = (code) => rooms.delete(code);
 
@@ -158,6 +179,8 @@ export function createRoomManager({
     applyTimeout,
     timerSnapshot,
     setConnected,
+    attachSocket,
+    detachSocket,
     getRoom,
     deleteRoom,
     generateCode,

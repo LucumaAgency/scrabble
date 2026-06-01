@@ -5,7 +5,9 @@ const faceOf = (cell) =>
 
 // board: matriz 15x15 con la ficha confirmada o null.
 // provisional: fichas que el jugador esta colocando este turno (aun no enviadas).
-export default function Board({ board, provisional, onCellClick, onProvisionalClick }) {
+// provStatus: 'valid' | 'invalid' | null -> tinta las fichas provisionales segun
+// si la palabra formada existe en el diccionario.
+export default function Board({ board, provisional, provStatus, onCellClick, onProvisionalClick }) {
   const provMap = new Map(provisional.map((p) => [`${p.row},${p.col}`, p]));
 
   return (
@@ -25,6 +27,7 @@ export default function Board({ board, provisional, onCellClick, onProvisionalCl
             content = <span className="tile-face">{faceOf(cell)}</span>;
           } else if (prov) {
             cls += ' provisional';
+            if (provStatus) cls += ` ${provStatus}`;
             content = (
               <span className="tile-face">
                 {(prov.assigned || prov.letter).toUpperCase()}

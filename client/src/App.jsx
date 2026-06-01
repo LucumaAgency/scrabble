@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   socket,
   emit,
@@ -8,6 +8,7 @@ import {
   getSavedCode,
   saveCode,
 } from './socket.js';
+import { playOpponentMove, playMyMove, playInvalid, primeAudio } from './sound.js';
 import Board from './components/Board.jsx';
 import Rack from './components/Rack.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
@@ -36,6 +37,16 @@ export default function App() {
   const [swapMode, setSwapMode] = useState(false);
   const [swapIds, setSwapIds] = useState([]);
   const [preview, setPreview] = useState(null); // estimado de la jugada en curso
+  const [muted, setMuted] = useState(() => localStorage.getItem('scrabble:muted') === '1');
+
+  // Refs para leer valores actuales dentro de listeners de socket (sin re-suscribir).
+  const mutedRef = useRef(muted);
+  const histLenRef = useRef(null); // longitud del historial vista (para detectar jugadas del rival)
+
+  useEffect(() => {
+    mutedRef.current = muted;
+    localStorage.setItem('scrabble:muted', muted ? '1' : '0');
+  }, [muted]);
 
   const flashError = useCallback((msg) => {
     setError(msg);
@@ -44,14 +55,37 @@ export default function App() {
 
   // Listeners de socket
   useEffect(() => {
-    const onConnect = () => {
+    const onConnect = async () => {
       setConnected(true);
       const savedCode = getSavedCode();
-      if (savedCode) emit('room:join', { code: savedCode, playerId, name: getSavedName() || 'Jugador' });
+      if (!savedCode) return;
+      // Reconexion automatica (sirve para host y no-host): reentra a la sala.
+      const res = await emit('room:join', {
+        code: savedCode,
+        playerId,
+        name: getSavedName() || 'Jugador',
+      });
+      if (!res?.ok) {
+        // La sala ya no existe (p.ej. el server se reinicio): volvemos al inicio.
+        saveCode('');
+        histLenRef.current = null;
+        setLobby(null);
+        setGame(null);
+      }
     };
     const onDisconnect = () => setConnected(false);
     const onRoom = (state) => setLobby(state);
     const onState = (state) => {
+      // Sonido cuando el RIVAL hizo una jugada (creció el historial con una
+      // entrada que no es mía). En el primer estado no suena (solo ancla).
+      const h = state.history || [];
+      if (histLenRef.current !== null && h.length > histLenRef.current) {
+        const fresh = h.slice(histLenRef.current);
+        const rivalActuo = fresh.some((e) => e.playerId && e.playerId !== playerId);
+        if (rivalActuo && !mutedRef.current) playOpponentMove();
+      }
+      histLenRef.current = h.length;
+
       setGame(state);
       setProvisional([]); // el servidor mando estado fresco: limpiamos lo provisional
       setSelectedId(null);
@@ -73,6 +107,7 @@ export default function App() {
 
   // ---- Acciones de sala ----
   async function createRoom() {
+    primeAudio();
     saveName(name);
     const res = await emit('room:create', { playerId, name: name || 'Jugador' });
     if (res.ok) saveCode(res.code);
@@ -80,6 +115,7 @@ export default function App() {
   }
 
   async function joinRoom() {
+    primeAudio();
     saveName(name);
     const res = await emit('room:join', { code: code.toUpperCase(), playerId, name: name || 'Jugador' });
     if (res.ok) saveCode(res.code);
@@ -97,16 +133,25 @@ export default function App() {
 
   function leaveRoom() {
     saveCode('');
+    histLenRef.current = null;
     setLobby(null);
     setGame(null);
     setProvisional([]);
   }
+
+  const toggleMute = () => {
+    primeAudio(); // desbloquea el audio con este gesto del usuario
+    setMuted((m) => !m);
+  };
 
   // ---- Acciones de juego ----
   const myTurn = game && game.turnPlayerId === playerId && game.status === 'playing';
   const me = game?.players.find((p) => p.id === playerId);
   const provIds = new Set(provisional.map((p) => p.tileId));
   const rackTiles = (me?.rack || []).filter((t) => !provIds.has(t.id));
+  // Verde si la(s) palabra(s) existen, rojo si alguna no; null mientras se coloca.
+  const provStatus =
+    provisional.length === 0 || !preview?.ok ? null : preview.allValid ? 'valid' : 'invalid';
 
   function onTileClick(tile) {
     if (swapMode) {
@@ -156,8 +201,11 @@ export default function App() {
       assigned: p.assigned || null,
     }));
     const res = await emit('game:move', { code: lobby.code, placements });
-    if (!res.ok) flashError(res.error);
-    else {
+    if (!res.ok) {
+      if (!muted) playInvalid();
+      flashError(res.error);
+    } else {
+      if (!muted) playMyMove();
       setProvisional([]);
       const b = res.scoring?.bingo ? ' ¡BINGO! +50' : '';
       setInfo(`+${res.scoring?.total ?? 0} puntos${b}`);
@@ -228,7 +276,7 @@ export default function App() {
   // ---- Render ----
   if (!lobby) {
     return (
-      <Shell connected={connected} error={error}>
+      <Shell connected={connected} error={error} muted={muted} onToggleMute={toggleMute}>
         <div className="card">
           <h1>Scrabble</h1>
           <label>
@@ -259,7 +307,7 @@ export default function App() {
   if (lobby.status === 'lobby') {
     const isHost = lobby.hostId === playerId;
     return (
-      <Shell connected={connected} error={error}>
+      <Shell connected={connected} error={error} muted={muted} onToggleMute={toggleMute}>
         <div className="card">
           <h2>Sala {lobby.code}</h2>
           <p className="muted">Comparte este código con tu rival.</p>
@@ -322,7 +370,7 @@ export default function App() {
       : null;
 
   return (
-    <Shell connected={connected} error={error}>
+    <Shell connected={connected} error={error} muted={muted} onToggleMute={toggleMute}>
       <div className="game-layout">
         <div className="left">
           <Scoreboard
@@ -375,6 +423,7 @@ export default function App() {
           <Board
             board={game.board}
             provisional={provisional}
+            provStatus={provStatus}
             onCellClick={onCellClick}
             onProvisionalClick={removeProvisional}
           />
@@ -474,13 +523,22 @@ export default function App() {
   );
 }
 
-function Shell({ connected, error, children }) {
+function Shell({ connected, error, muted, onToggleMute, children }) {
   return (
     <div className="app">
       <div className="topbar">
         <span className="logo">SCRABBLE</span>
-        <span className={`conn ${connected ? 'on' : 'off'}`}>
-          {connected ? 'conectado' : 'sin conexión'}
+        <span className="topbar-right">
+          <button
+            className="mute-btn"
+            onClick={onToggleMute}
+            title={muted ? 'Activar sonido' : 'Silenciar'}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
+          <span className={`conn ${connected ? 'on' : 'off'}`}>
+            {connected ? 'conectado' : 'sin conexión'}
+          </span>
         </span>
       </div>
       {error && <div className="banner err">{error}</div>}
