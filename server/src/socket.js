@@ -26,6 +26,7 @@ function resolvePlacements(game, playerId, placements) {
 export function attachSockets(io, manager) {
   function emitLobby(room) {
     io.to(room.code).emit('room:update', lobbyState(room));
+    manager.persist(); // guarda el estado tras cada cambio (sobrevive reinicios)
   }
 
   // Cada jugador recibe un estado PERSONALIZADO (solo ve su propio atril).
@@ -39,6 +40,7 @@ export function attachSockets(io, manager) {
         timer,
       });
     }
+    manager.persist();
   }
 
   function bindSocketToRoom(socket, code, playerId) {

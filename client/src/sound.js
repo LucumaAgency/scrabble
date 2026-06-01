@@ -29,14 +29,15 @@ function tone(freq, start, dur, { gain = 0.14, type = 'sine' } = {}) {
 }
 
 // Chime ascendente: el rival hizo una jugada (suele tocar al volver tu turno).
+// Volumen doblado (0.14 -> 0.28) para que la jugada se note más.
 export function playOpponentMove() {
-  tone(660, 0, 0.18);
-  tone(988, 0.11, 0.24);
+  tone(660, 0, 0.18, { gain: 0.28 });
+  tone(988, 0.11, 0.24, { gain: 0.28 });
 }
 
-// Click breve de confirmación de tu propia jugada.
+// Click de confirmación de tu propia jugada. Volumen doblado (0.1 -> 0.2).
 export function playMyMove() {
-  tone(523, 0, 0.12, { gain: 0.1 });
+  tone(523, 0, 0.12, { gain: 0.2 });
 }
 
 // Tono grave: jugada rechazada / palabra inválida.

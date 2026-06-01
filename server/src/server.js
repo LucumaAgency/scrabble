@@ -41,7 +41,17 @@ const io = new Server(httpServer, {
   cors: { origin: process.env.CORS_ORIGIN || '*' },
 });
 
-const manager = createRoomManager({ dictionary });
+// Estado persistido en disco: la partida sobrevive a reinicios (deploy en Plesk).
+const statePath = process.env.STATE_PATH || join(__dirname, '../.data/rooms.json');
+const manager = createRoomManager({ dictionary, storePath: statePath });
 attachSockets(io, manager);
+
+// Al apagar (Plesk reinicia con SIGTERM), guardamos el estado de inmediato.
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    manager.flush();
+    process.exit(0);
+  });
+}
 
 httpServer.listen(PORT, () => console.log(`Servidor escuchando en :${PORT}`));

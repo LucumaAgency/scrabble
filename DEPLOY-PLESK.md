@@ -72,6 +72,20 @@ Y reiniciar la app Node desde el panel.
 
 ---
 
+## 4b. Persistencia entre reinikos (deploy)
+
+El estado de las partidas se guarda en disco para sobrevivir a un restart de la
+app (deploy). Por defecto en `server/.data/rooms.json` (configurable con la
+variable de entorno `STATE_PATH`). Al reiniciar, el server recarga las salas y
+los clientes reconectan solos a su partida.
+
+- **IMPORTANTE:** el deploy debe ser `git pull` (que NO toca archivos no
+  versionados). Evitar `git reset --hard` / `git clean` en las acciones de
+  despliegue, porque borrarían `server/.data/` y se perderían las partidas.
+- `server/.data/` está en `.gitignore` (no va al repo).
+
+---
+
 ## 5. Pendiente / a verificar
 
 - **WebSockets de Socket.IO:** Passenger los soporta. Si la conexión WS falla, Socket.IO

@@ -1,4 +1,6 @@
 import { createGame, isValidWord } from './engine/index.js';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 // Alfabeto para codigos de sala: sin I, O, 0, 1 para evitar confusiones al teclear.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -46,6 +48,7 @@ export function createRoomManager({
   rng = Math.random,
   maxPlayers = 2,
   now = () => Date.now(),
+  storePath = null, // si se da, persiste el estado a disco (sobrevive reinicios)
 } = {}) {
   const rooms = new Map();
 
@@ -173,6 +176,67 @@ export function createRoomManager({
   // Consulta del diccionario (sirve para probar palabras sin importar el turno).
   const isWord = (word) => isValidWord(dictionary, word);
 
+  // --- Persistencia: sobrevive a reinicios del proceso (p.ej. deploy en Plesk) ---
+  // dictionary (Set) y rng (función) no son serializables; se reinyectan al cargar.
+  function serializeRoom(room) {
+    if (!room.game) return room;
+    const { dictionary: _d, rng: _r, ...game } = room.game;
+    return { ...room, game };
+  }
+
+  function writeNow() {
+    if (!storePath) return;
+    try {
+      mkdirSync(dirname(storePath), { recursive: true });
+      const data = { rooms: [...rooms.values()].map(serializeRoom) };
+      writeFileSync(storePath, JSON.stringify(data));
+    } catch (e) {
+      console.error('No se pudo guardar el estado:', e.message);
+    }
+  }
+
+  let saveTimer = null;
+  // Guardado diferido que agrupa varios cambios seguidos.
+  function persist() {
+    if (!storePath || saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      writeNow();
+    }, 400);
+  }
+  // Guardado inmediato (para el apagado: SIGTERM/SIGINT).
+  function flush() {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    writeNow();
+  }
+
+  function loadFromDisk() {
+    if (!storePath || !existsSync(storePath)) return;
+    try {
+      const data = JSON.parse(readFileSync(storePath, 'utf8'));
+      for (const room of data.rooms || []) {
+        if (room.game) {
+          room.game.dictionary = dictionary;
+          room.game.rng = rng;
+        }
+        // Al reiniciar no hay sockets: todos offline hasta que reconecten.
+        for (const p of room.players) {
+          p.connected = false;
+          p.socketId = null;
+        }
+        rooms.set(room.code, room);
+      }
+      if (rooms.size) console.log(`Estado restaurado: ${rooms.size} sala(s)`);
+    } catch (e) {
+      console.error('No se pudo cargar el estado:', e.message);
+    }
+  }
+
+  loadFromDisk();
+
   return {
     rooms,
     createRoom,
@@ -188,6 +252,8 @@ export function createRoomManager({
     getRoom,
     deleteRoom,
     generateCode,
+    persist,
+    flush,
   };
 }
 

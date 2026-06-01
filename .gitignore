@@ -6,6 +6,10 @@ build/
 .DS_Store
 coverage/
 
+# Estado de partidas persistido en runtime (no debe ir al repo).
+.data/
+server/.data/
+
 # El build del cliente (client/dist) SE VERSIONA a proposito: el deploy en
 # Plesk es solo `git pull` + restart, sin paso de build en el servidor (asi no
 # depende de devDependencies como vite con NODE_ENV=production).

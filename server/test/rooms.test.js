@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { rmSync, existsSync } from 'node:fs';
 import { createRoomManager, lobbyState } from '../src/rooms.js';
 import { makeDictionary } from '../src/engine/index.js';
 import { mulberry32 } from './helpers.js';
@@ -127,6 +130,31 @@ describe('reloj por jugador', () => {
     clock.t = 200000;
     m.applyTimeout(room, 'p1');
     expect(m.timerSnapshot(room).players.p1).toBe(0);
+  });
+});
+
+describe('persistencia (sobrevive reinicios)', () => {
+  const path = join(tmpdir(), 'scrabble-test-state.json');
+  afterEach(() => {
+    if (existsSync(path)) rmSync(path);
+  });
+
+  it('guarda y restaura las salas reinyectando el diccionario', () => {
+    const m1 = createRoomManager({ dictionary: dict, rng: mulberry32(1), storePath: path });
+    const room = m1.createRoom('p1', 'Ana');
+    m1.joinRoom(room.code, 'p2', 'Beto');
+    m1.startGame(room.code, 'p1', '3', true);
+    m1.flush();
+
+    // Un proceso nuevo (otro manager) levanta del mismo archivo.
+    const m2 = createRoomManager({ dictionary: dict, rng: mulberry32(1), storePath: path });
+    const r2 = m2.getRoom(room.code);
+    expect(r2).toBeTruthy();
+    expect(r2.status).toBe('playing');
+    expect(r2.game.players).toHaveLength(2);
+    expect(r2.timer.mode).toBe('3');
+    expect(r2.game.dictionary.has('sol')).toBe(true); // diccionario reinyectado
+    expect(r2.players.every((p) => p.connected === false)).toBe(true); // offline hasta reconectar
   });
 });
 
