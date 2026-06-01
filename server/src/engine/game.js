@@ -23,6 +23,7 @@ export function createGame({ playerIds, dictionary, rng = Math.random }) {
     history: [],
     consecutivePasses: 0,
     isFirstMove: true,
+    resignedBy: null, // id del jugador que se rindió, si alguno
     dictionary,
     rng,
   };
@@ -143,6 +144,18 @@ function finishGame(game, emptyRackPlayerId) {
   game.history.push({ type: 'end' });
 }
 
+// Un jugador se rinde: la partida termina y gana el rival. Se puede en
+// cualquier momento (no requiere ser tu turno).
+export function resign(game, playerId) {
+  if (game.status !== 'playing') return { ok: false, error: 'La partida no esta activa' };
+  const player = game.players.find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: 'No estas en la partida' };
+  game.status = 'finished';
+  game.resignedBy = playerId;
+  game.history.push({ type: 'resign', playerId });
+  return { ok: true };
+}
+
 // Calcula el resultado de una jugada SIN aplicarla: puntos estimados y validez
 // de cada palabra formada. Sirve para el preview en vivo del cliente. No muta
 // el estado (validateMove trabaja sobre un tablero temporal).
@@ -175,6 +188,7 @@ export function publicState(game, forPlayerId) {
   return {
     status: game.status,
     turnPlayerId: game.players[game.turn]?.id,
+    resignedBy: game.resignedBy ?? null,
     isFirstMove: game.isFirstMove,
     bagCount: game.bag.length,
     board: game.board.map((row) =>

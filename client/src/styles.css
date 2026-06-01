@@ -40,6 +40,8 @@ body {
   line-height: 1; padding: 2px 4px; border-radius: 8px;
 }
 .mute-btn:hover { background: #333c49; }
+.vol-slider { width: 84px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
+@media (max-width: 480px) { .vol-slider { width: 60px; } }
 
 /* ---- Home / Lobby cards ---- */
 .card {
@@ -66,6 +68,8 @@ body {
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #04211d; font-weight: 700; }
 .btn.ghost { background: transparent; }
 .btn.small { font-size: 13px; padding: 6px 10px; }
+.btn.danger { background: #5a2b27; border-color: #7a3a34; color: #f3b1a6; }
+.btn.danger:hover:not(:disabled) { background: #6e352f; }
 
 /* ---- Game layout ---- */
 .game-layout { display: grid; grid-template-columns: 1fr; gap: 12px; }

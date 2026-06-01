@@ -1,6 +1,16 @@
 // Sonidos del juego con Web Audio (sin archivos: se sintetizan en el navegador).
 // El AudioContext se crea/reanuda en el primer uso (tras un gesto del usuario).
 let ctx;
+let volume = 0.7; // 0..1, controlado por el slider del usuario
+
+export function setVolume(v) {
+  const n = Number(v);
+  volume = Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
+}
+export function getVolume() {
+  return volume;
+}
+
 function ac() {
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -12,6 +22,8 @@ function ac() {
 }
 
 function tone(freq, start, dur, { gain = 0.14, type = 'sine' } = {}) {
+  const peak = gain * volume;
+  if (peak <= 0.0005) return; // silencio: no programar nada
   const c = ac();
   if (!c) return;
   const osc = c.createOscillator();
@@ -22,7 +34,7 @@ function tone(freq, start, dur, { gain = 0.14, type = 'sine' } = {}) {
   g.connect(c.destination);
   const t0 = c.currentTime + start;
   g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(gain, t0 + 0.012);
+  g.gain.linearRampToValueAtTime(peak, t0 + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   osc.start(t0);
   osc.stop(t0 + dur + 0.02);

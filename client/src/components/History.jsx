@@ -39,6 +39,12 @@ export default function History({ history, nameOf }) {
                   <span className="muted">cambió {e.count} ficha{e.count === 1 ? '' : 's'}</span>
                 </>
               )}
+              {e.type === 'resign' && (
+                <>
+                  <span className="who">{nameOf(e.playerId)}</span>{' '}
+                  <span className="muted">se rindió</span>
+                </>
+              )}
             </li>
           ))}
       </ol>

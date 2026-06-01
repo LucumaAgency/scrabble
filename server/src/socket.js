@@ -1,4 +1,11 @@
-import { applyMove, passTurn, swapTiles, previewMove, publicState } from './engine/index.js';
+import {
+  applyMove,
+  passTurn,
+  swapTiles,
+  previewMove,
+  resign,
+  publicState,
+} from './engine/index.js';
 import { lobbyState } from './rooms.js';
 
 // Sala personal de Socket.IO para enviar a un jugador su estado privado (su atril).
@@ -135,6 +142,18 @@ export function attachSockets(io, manager) {
       if (!res.ok) return cb?.({ ok: false, error: res.error });
       if (room.game.status === 'finished') room.status = 'finished';
       manager.syncClockToTurn(room);
+      cb?.({ ok: true });
+      emitLobby(room);
+      emitGameState(room);
+    });
+
+    socket.on('game:resign', ({ code } = {}, cb) => {
+      const room = manager.getRoom(code);
+      if (!room?.game) return cb?.({ ok: false, error: 'Partida no encontrada' });
+      const res = resign(room.game, socket.data.playerId);
+      if (!res.ok) return cb?.({ ok: false, error: res.error });
+      room.status = 'finished';
+      manager.syncClockToTurn(room); // detiene los relojes
       cb?.({ ok: true });
       emitLobby(room);
       emitGameState(room);

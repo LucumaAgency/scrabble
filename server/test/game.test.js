@@ -5,6 +5,7 @@ import {
   passTurn,
   swapTiles,
   previewMove,
+  resign,
   publicState,
 } from '../src/engine/game.js';
 import { makeDictionary } from '../src/engine/dictionary.js';
@@ -155,6 +156,23 @@ describe('previewMove', () => {
 
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/centro/i);
+  });
+});
+
+describe('resign', () => {
+  it('rendirse termina la partida y marca al jugador (aunque no sea su turno)', () => {
+    const game = newGame();
+    const res = resign(game, 'p2'); // es turno de p1, pero p2 se rinde
+    expect(res.ok).toBe(true);
+    expect(game.status).toBe('finished');
+    expect(game.resignedBy).toBe('p2');
+    expect(publicState(game, 'p1').resignedBy).toBe('p2');
+  });
+
+  it('no se puede rendir en una partida terminada', () => {
+    const game = newGame();
+    resign(game, 'p1');
+    expect(resign(game, 'p2').ok).toBe(false);
   });
 });
 

@@ -8,7 +8,7 @@ import {
   getSavedCode,
   saveCode,
 } from './socket.js';
-import { playOpponentMove, playMyMove, playInvalid, primeAudio } from './sound.js';
+import { playOpponentMove, playMyMove, playInvalid, primeAudio, setVolume } from './sound.js';
 import Board from './components/Board.jsx';
 import Rack from './components/Rack.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
@@ -38,17 +38,26 @@ export default function App() {
   const [swapMode, setSwapMode] = useState(false);
   const [swapIds, setSwapIds] = useState([]);
   const [preview, setPreview] = useState(null); // estimado de la jugada en curso
-  const [muted, setMuted] = useState(() => localStorage.getItem('scrabble:muted') === '1');
+  const [volume, setVol] = useState(() => {
+    const v = parseFloat(localStorage.getItem('scrabble:volume'));
+    return Number.isFinite(v) ? v : 0.7;
+  });
   const [rackOrder, setRackOrder] = useState([]); // orden local de las fichas del atril
 
-  // Refs para leer valores actuales dentro de listeners de socket (sin re-suscribir).
-  const mutedRef = useRef(muted);
-  const histLenRef = useRef(null); // longitud del historial vista (para detectar jugadas del rival)
+  // Ancla para detectar jugadas del rival dentro del listener de socket.
+  const histLenRef = useRef(null);
 
+  // Aplica el volumen al módulo de sonido y lo persiste.
   useEffect(() => {
-    mutedRef.current = muted;
-    localStorage.setItem('scrabble:muted', muted ? '1' : '0');
-  }, [muted]);
+    setVolume(volume);
+    localStorage.setItem('scrabble:volume', String(volume));
+  }, [volume]);
+
+  // Desbloquea el audio y cambia el volumen (lo llama el slider, que es un gesto).
+  const onVolume = (v) => {
+    primeAudio();
+    setVol(v);
+  };
 
   const flashError = useCallback((msg) => {
     setError(msg);
@@ -84,7 +93,7 @@ export default function App() {
       if (histLenRef.current !== null && h.length > histLenRef.current) {
         const fresh = h.slice(histLenRef.current);
         const rivalActuo = fresh.some((e) => e.playerId && e.playerId !== playerId);
-        if (rivalActuo && !mutedRef.current) playOpponentMove();
+        if (rivalActuo) playOpponentMove(); // el volumen 0 ya lo silencia
       }
       histLenRef.current = h.length;
 
@@ -141,10 +150,11 @@ export default function App() {
     setProvisional([]);
   }
 
-  const toggleMute = () => {
-    primeAudio(); // desbloquea el audio con este gesto del usuario
-    setMuted((m) => !m);
-  };
+  async function resign() {
+    if (!window.confirm('¿Seguro que quieres rendirte? Perderás la partida.')) return;
+    const res = await emit('game:resign', { code: lobby.code });
+    if (!res.ok) flashError(res.error);
+  }
 
   function shuffleRack() {
     setRackOrder((prev) => {
@@ -233,10 +243,10 @@ export default function App() {
     }));
     const res = await emit('game:move', { code: lobby.code, placements });
     if (!res.ok) {
-      if (!muted) playInvalid();
+      playInvalid();
       flashError(res.error);
     } else {
-      if (!muted) playMyMove();
+      playMyMove();
       setProvisional([]);
       const b = res.scoring?.bingo ? ' ¡BINGO! +50' : '';
       setInfo(`+${res.scoring?.total ?? 0} puntos${b}`);
@@ -320,7 +330,7 @@ export default function App() {
   // ---- Render ----
   if (!lobby) {
     return (
-      <Shell connected={connected} error={error} muted={muted} onToggleMute={toggleMute}>
+      <Shell connected={connected} error={error} volume={volume} onVolume={onVolume}>
         <div className="card">
           <h1>Scrabble</h1>
           <label>
@@ -351,7 +361,7 @@ export default function App() {
   if (lobby.status === 'lobby') {
     const isHost = lobby.hostId === playerId;
     return (
-      <Shell connected={connected} error={error} muted={muted} onToggleMute={toggleMute}>
+      <Shell connected={connected} error={error} volume={volume} onVolume={onVolume}>
         <div className="card">
           <h2>Sala {lobby.code}</h2>
           <p className="muted">Comparte este código con tu rival.</p>
@@ -406,21 +416,34 @@ export default function App() {
     );
   }
 
+  // Evita pantalla en negro: la sala ya está "playing" pero el primer game:state
+  // aún no llegó. Mostramos un cargando en vez de acceder a game.* (null).
+  if (!game) {
+    return (
+      <Shell connected={connected} error={error} volume={volume} onVolume={onVolume}>
+        <div className="card">
+          <p className="muted">Cargando partida…</p>
+        </div>
+      </Shell>
+    );
+  }
+
   // status playing | finished
-  const finished = game?.status === 'finished';
-  const nameOf = (pid) =>
-    pid === playerId ? 'Tú' : lobby.players.find((x) => x.id === pid)?.name || 'Rival';
-  const winner =
-    finished && game
-      ? [...game.players].sort((a, b) => b.score - a.score)[0]
-      : null;
+  const finished = game.status === 'finished';
+  const realName = (pid) => lobby.players.find((x) => x.id === pid)?.name || 'Jugador';
+  const nameOf = (pid) => (pid === playerId ? 'Tú' : realName(pid));
+  const winner = finished
+    ? game.resignedBy
+      ? game.players.find((p) => p.id !== game.resignedBy)
+      : [...game.players].sort((a, b) => b.score - a.score)[0]
+    : null;
 
   return (
-    <Shell connected={connected} error={error} muted={muted} onToggleMute={toggleMute}>
+    <Shell connected={connected} error={error} volume={volume} onVolume={onVolume}>
       <div className="game-layout">
         <div className="left">
           <Scoreboard
-            players={game.players}
+            players={game.players.map((p) => ({ ...p, name: realName(p.id) }))}
             turnPlayerId={game.turnPlayerId}
             myId={playerId}
             bagCount={game.bagCount}
@@ -453,8 +476,13 @@ export default function App() {
           )}
           {finished && (
             <div className="banner">
-              Partida terminada. Ganó <strong>{winner?.name || winner?.id}</strong> con{' '}
-              {winner?.score} puntos.
+              {game.resignedBy && (
+                <>
+                  <strong>{nameOf(game.resignedBy)}</strong> se rindió.{' '}
+                </>
+              )}
+              Partida terminada. Ganó <strong>{nameOf(winner?.id)}</strong> con {winner?.score}{' '}
+              puntos.
             </div>
           )}
           {info && <div className="banner ok">{info}</div>}
@@ -542,6 +570,9 @@ export default function App() {
                   >
                     Barajar
                   </button>
+                  <button className="btn danger" onClick={resign} title="Rendirse">
+                    Rendirse
+                  </button>
                 </>
               ) : (
                 <>
@@ -581,7 +612,8 @@ export default function App() {
   );
 }
 
-function Shell({ connected, error, muted, onToggleMute, children }) {
+function Shell({ connected, error, volume, onVolume, children }) {
+  const muted = volume <= 0;
   return (
     <div className="app">
       <div className="topbar">
@@ -589,11 +621,21 @@ function Shell({ connected, error, muted, onToggleMute, children }) {
         <span className="topbar-right">
           <button
             className="mute-btn"
-            onClick={onToggleMute}
+            onClick={() => onVolume(muted ? 0.7 : 0)}
             title={muted ? 'Activar sonido' : 'Silenciar'}
           >
             {muted ? '🔇' : '🔊'}
           </button>
+          <input
+            className="vol-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={volume}
+            onChange={(e) => onVolume(parseFloat(e.target.value))}
+            title="Volumen"
+          />
           <span className={`conn ${connected ? 'on' : 'off'}`}>
             {connected ? 'conectado' : 'sin conexión'}
           </span>
