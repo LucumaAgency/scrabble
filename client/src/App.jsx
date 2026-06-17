@@ -18,6 +18,13 @@ import History from './components/History.jsx';
 
 const playerId = getPlayerId();
 
+// Código de sala compartido por enlace: scrabble.pruebalucuma.site/?code=ABCD
+// Permite unirse sin teclear el código. Se limpia a 4 letras A-Z.
+const urlCode = (new URLSearchParams(window.location.search).get('code') || '')
+  .toUpperCase()
+  .replace(/[^A-Z]/g, '')
+  .slice(0, 4);
+
 export default function App() {
   const [connected, setConnected] = useState(socket.connected);
   const [lobby, setLobby] = useState(null); // room:update
@@ -27,7 +34,8 @@ export default function App() {
 
   // Formulario de inicio
   const [name, setName] = useState(getSavedName());
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(urlCode);
+  const [copied, setCopied] = useState(false);
   const [timeMode, setTimeMode] = useState('15'); // '3' | '15' | 'unlimited'
   const [extraTime, setExtraTime] = useState(false); // +5 min al agotarse
 
@@ -64,19 +72,37 @@ export default function App() {
     setTimeout(() => setError(''), 4000);
   }, []);
 
+  // Copia el enlace de la sala (con ?code=) al portapapeles para compartirlo.
+  const copyShareLink = useCallback((roomCode) => {
+    const url = `${window.location.origin}/?code=${roomCode}`;
+    const done = () => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, done);
+    else done();
+  }, []);
+
   // Listeners de socket
   useEffect(() => {
     const onConnect = async () => {
       setConnected(true);
-      const savedCode = getSavedCode();
-      if (!savedCode) return;
-      // Reconexion automatica (sirve para host y no-host): reentra a la sala.
+      // Preferimos el código del enlace (?code=) sobre el guardado: una invitación
+      // debe llevar a su sala aunque tuvieras otra partida guardada.
+      const targetCode = urlCode || getSavedCode();
+      if (!targetCode) return;
+      // Si entró por enlace pero aún no tiene nombre guardado, no auto-unimos:
+      // dejamos el código precargado para que escriba su nombre y pulse "Unirse".
+      if (urlCode && !getSavedName()) return;
+      // Reconexion/auto-union (sirve para host y no-host): reentra a la sala.
       const res = await emit('room:join', {
-        code: savedCode,
+        code: targetCode,
         playerId,
         name: getSavedName() || 'Jugador',
       });
-      if (!res?.ok) {
+      if (res?.ok) {
+        saveCode(res.code);
+      } else {
         // La sala ya no existe (p.ej. el server se reinicio): volvemos al inicio.
         saveCode('');
         histLenRef.current = null;
@@ -364,7 +390,10 @@ export default function App() {
       <Shell connected={connected} error={error} volume={volume} onVolume={onVolume}>
         <div className="card">
           <h2>Sala {lobby.code}</h2>
-          <p className="muted">Comparte este código con tu rival.</p>
+          <p className="muted">Comparte el código o el enlace con tu rival.</p>
+          <button className="btn small" onClick={() => copyShareLink(lobby.code)}>
+            {copied ? '✓ Enlace copiado' : '🔗 Copiar enlace de invitación'}
+          </button>
           <ul className="player-list">
             {lobby.players.map((p) => (
               <li key={p.id}>

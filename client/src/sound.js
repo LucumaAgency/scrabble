@@ -41,10 +41,11 @@ function tone(freq, start, dur, { gain = 0.14, type = 'sine' } = {}) {
 }
 
 // Chime ascendente: el rival hizo una jugada (suele tocar al volver tu turno).
-// Volumen doblado (0.14 -> 0.28) para que la jugada se note más.
+// Es el aviso de "es tu turno", así que va más fuerte que el resto (gain 0.55)
+// para que se note aunque estés en otra pestaña.
 export function playOpponentMove() {
-  tone(660, 0, 0.18, { gain: 0.28 });
-  tone(988, 0.11, 0.24, { gain: 0.28 });
+  tone(660, 0, 0.2, { gain: 0.55 });
+  tone(988, 0.11, 0.26, { gain: 0.55 });
 }
 
 // Click de confirmación de tu propia jugada. Volumen doblado (0.1 -> 0.2).
