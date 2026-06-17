@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { premiumAt, premiumLabel, CENTER } from '../premiums.js';
 
 const faceOf = (cell) =>
@@ -7,8 +8,11 @@ const faceOf = (cell) =>
 // provisional: fichas que el jugador esta colocando este turno (aun no enviadas).
 // provStatus: 'valid' | 'invalid' | null -> tinta las fichas provisionales segun
 // si la palabra formada existe en el diccionario.
-export default function Board({ board, provisional, provStatus, onCellClick, onProvisionalClick }) {
+// onCellDrop(row, col, tileId): coloca en esa celda la ficha arrastrada desde el
+// atril (drag & drop). El flujo de click (seleccionar + tocar celda) sigue activo.
+export default function Board({ board, provisional, provStatus, onCellClick, onProvisionalClick, onCellDrop }) {
   const provMap = new Map(provisional.map((p) => [`${p.row},${p.col}`, p]));
+  const [overKey, setOverKey] = useState(null); // celda resaltada al arrastrar encima
 
   return (
     <div className="board">
@@ -18,6 +22,7 @@ export default function Board({ board, provisional, provStatus, onCellClick, onP
           const prov = provMap.get(key);
           const prem = premiumAt(r, c);
           const isCenter = r === CENTER.row && c === CENTER.col;
+          const droppable = !cell && !prov; // solo se suelta en celdas vacías
 
           let cls = 'cell';
           let content = null;
@@ -38,6 +43,7 @@ export default function Board({ board, provisional, provStatus, onCellClick, onP
             content = <span className="prem-label">{premiumLabel(prem)}</span>;
           }
           if (isCenter && !cell && !prov) content = <span className="star">★</span>;
+          if (droppable && overKey === key) cls += ' drop-target';
 
           const handleClick = prov
             ? () => onProvisionalClick(prov)
@@ -45,8 +51,27 @@ export default function Board({ board, provisional, provStatus, onCellClick, onP
               ? () => onCellClick(r, c)
               : undefined;
 
+          // Destino de drag & drop solo en celdas vacías.
+          const dropProps =
+            droppable && onCellDrop
+              ? {
+                  onDragOver: (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  },
+                  onDragEnter: () => setOverKey(key),
+                  onDragLeave: () => setOverKey((k) => (k === key ? null : k)),
+                  onDrop: (e) => {
+                    e.preventDefault();
+                    setOverKey(null);
+                    const id = e.dataTransfer.getData('text/plain');
+                    if (id) onCellDrop(r, c, id);
+                  },
+                }
+              : null;
+
           return (
-            <div key={key} className={cls} onClick={handleClick}>
+            <div key={key} className={cls} onClick={handleClick} {...dropProps}>
               {content}
             </div>
           );

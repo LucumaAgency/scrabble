@@ -226,17 +226,27 @@ export default function App() {
     setSelectedId((id) => (id === tile.id ? null : tile.id));
   }
 
-  function onCellClick(row, col) {
-    // Se pueden colocar fichas aunque NO sea tu turno: sirve para simular una
-    // jugada y ver en el tablero si la palabra existe y cuántos puntos daría.
-    if (!selectedId || game?.status !== 'playing') return;
-    const tile = rackTiles.find((t) => t.id === selectedId);
-    if (!tile) return;
+  // Coloca una ficha del atril en una celda. Las fichas se pueden poner aunque
+  // NO sea tu turno: sirve para simular la jugada y ver puntos/validez. Los
+  // comodines abren el selector de letra antes de colocarse.
+  function placeTile(tile, row, col) {
+    if (!tile || game?.status !== 'playing') return;
     if (tile.isBlank) {
       setPendingBlank({ row, col, tile });
       return;
     }
     placeProvisional(tile, row, col, null);
+  }
+
+  // Click: coloca la ficha seleccionada en el atril.
+  function onCellClick(row, col) {
+    if (!selectedId) return;
+    placeTile(rackTiles.find((t) => t.id === selectedId), row, col);
+  }
+
+  // Drag & drop: coloca la ficha arrastrada (identificada por su id) en la celda.
+  function onCellDrop(row, col, tileId) {
+    placeTile(rackTiles.find((t) => t.id === tileId), row, col);
   }
 
   function placeProvisional(tile, row, col, assigned) {
@@ -531,6 +541,7 @@ export default function App() {
             provStatus={provStatus}
             onCellClick={onCellClick}
             onProvisionalClick={removeProvisional}
+            onCellDrop={onCellDrop}
           />
         </div>
 

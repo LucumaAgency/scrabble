@@ -1,6 +1,8 @@
 // Atril del jugador. En modo normal, una ficha seleccionada se resalta y se
 // coloca al hacer click en una celda. En modo cambio, se marcan varias para swap.
-// Fuera del modo cambio, las fichas se pueden reordenar arrastrándolas.
+// Fuera del modo cambio, las fichas se pueden arrastrar: si se sueltan sobre otra
+// ficha del atril se reordenan; si se sueltan sobre una celda del tablero se
+// colocan ahí (el tablero lee el id desde dataTransfer).
 import { useState } from 'react';
 
 export default function Rack({ tiles, selectedId, swapMode, swapIds, onTileClick, onReorder }) {
@@ -19,7 +21,16 @@ export default function Rack({ tiles, selectedId, swapMode, swapIds, onTileClick
             }`}
             draggable={draggable}
             onClick={() => onTileClick(t)}
-            onDragStart={draggable ? () => setDragId(t.id) : undefined}
+            onDragStart={
+              draggable
+                ? (e) => {
+                    setDragId(t.id);
+                    // El tablero (y el reordenado) leen este id al soltar.
+                    e.dataTransfer.setData('text/plain', t.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }
+                : undefined
+            }
             onDragEnd={draggable ? () => setDragId(null) : undefined}
             onDragOver={draggable ? (e) => e.preventDefault() : undefined}
             onDrop={

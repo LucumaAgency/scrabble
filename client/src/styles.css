@@ -116,6 +116,8 @@ body {
   position: relative;
 }
 .cell:not(.filled):hover { outline: 1px solid var(--accent); cursor: pointer; }
+/* Celda resaltada mientras se arrastra una ficha encima (drag & drop). */
+.cell.drop-target { outline: 2px solid var(--accent); background: var(--prov); }
 .prem-DL { background: var(--dl); }
 .prem-TL { background: var(--tl); }
 .prem-DW { background: var(--dw); }
